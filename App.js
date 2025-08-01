@@ -6,7 +6,8 @@ import WelcomeScreen from './Screens/WelcomeScreen';
 import LoginScreen from './Screens/LoginScreen';
 import RegisterScreen from './Screens/RegisterScreen';
 import DrawerNavigator from './navigation/DrawerNavigator';
-import MakePaymentScreen from './Screens/MakePaymentScreen';  // IMPORT HERE
+import MakePaymentScreen from './Screens/MakePaymentScreen';
+import PaymentsScreen from './Screens/PaymentsScreen'; // ✅ Hii ndiyo screen uliyokuwa una-navigate
 
 const Stack = createStackNavigator();
 
@@ -18,7 +19,14 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="Home" component={DrawerNavigator} />
-        <Stack.Screen name="MakePayment" component={MakePaymentScreen} />  
+        <Stack.Screen name="MakePayment" component={MakePaymentScreen} />
+        
+        {/* ✅ Ongeza hii */}
+        <Stack.Screen 
+          name="PaymentsScreen" 
+          component={PaymentsScreen}
+          options={{ headerShown: true, title: 'Malipo ya Huduma' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

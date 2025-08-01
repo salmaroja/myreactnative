@@ -21,9 +21,9 @@ export default function DrawerNavigator() {
     <Drawer.Navigator
       initialRouteName="Dashboard"
       screenOptions={{
-        headerStyle: { backgroundColor: '#1abc9c' },
+        headerStyle: { backgroundColor: '#4da6ff' }, // BLUE kama ya "Soma Zaidi"
         headerTintColor: '#fff',
-        drawerActiveBackgroundColor: '#16a085',
+        drawerActiveBackgroundColor: '#1a6d9e', // BLUE tofauti kidogo
         drawerActiveTintColor: '#fff',
         drawerInactiveTintColor: '#333',
         drawerLabelStyle: { fontSize: 16, fontWeight: '600' },

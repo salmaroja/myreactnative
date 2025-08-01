@@ -1,169 +1,323 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  ActivityIndicator,
-  Alert,
   TextInput,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import axios from 'axios';
 
-export default function RequestsScreen() {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const navigation = useNavigation();
+const RequestFormScreen = ({ navigation }) => {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    nationalId: '',
+    address: '',
+    phone: '',
+    serviceType: 'Kuunganishiwa Maji',
+    meterType: 'Smart Meter',
+  });
+  const [picture, setPicture] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [customerId, setCustomerId] = useState(null);
+  const [errors, setErrors] = useState({});
 
-  const BASE_URL = 'http://10.3.2.95:50655/api/requests';
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const jsonValue = await AsyncStorage.getItem('userData');
+        if (jsonValue) {
+          const user = JSON.parse(jsonValue);
+          setCustomerId(user.id);
+          setFormData(prev => ({
+            ...prev,
+            fullName: user.name || '',
+            phone: user.phone || '',
+          }));
+        } else {
+          Alert.alert('Tafadhali ingia tena kwenye mfumo');
+          navigation.replace('LoginScreen');
+        }
+      } catch (error) {
+        console.error('Error reading user data', error);
+        Alert.alert('Hitilafu', 'Imeshindwa kusoma taarifa za mtumiaji');
+      }
+    };
+    fetchUser();
+  }, []);
 
-  const fetchRequests = async () => {
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.fullName) newErrors.fullName = 'Jina kamili linahitajika';
+    if (!formData.nationalId) newErrors.nationalId = 'Namba ya kitambulisho inahitajika';
+    if (!formData.address) newErrors.address = 'Anuani inahitajika';
+    if (!formData.phone) newErrors.phone = 'Namba ya simu inahitajika';
+    if (!picture) newErrors.picture = 'Picha ya ushahidi inahitajika';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const selectPicture = async () => {
     try {
-      const response = await fetch(BASE_URL);
-      if (!response.ok) throw new Error('Failed to fetch requests');
-      const data = await response.json();
-      setRequests(data);
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to load requests. Check connection or server.');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Ruhusa haijatolewa', 'Tafadhali ruhusu upatikanaji wa picha');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setPicture(result.assets[0]);
+        setErrors(prev => ({ ...prev, picture: null }));
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Hitilafu', 'Imeshindwa kuchagua picha');
+    }
+  };
+
+  const handleChange = (name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setErrors(prev => ({ ...prev, [name]: null }));
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    try {
+      setLoading(true);
+
+      const data = new FormData();
+      data.append('fullName', formData.fullName);
+      data.append('nationalId', formData.nationalId);
+      data.append('address', formData.address);
+      data.append('phone', formData.phone);
+      data.append('serviceType', formData.serviceType);
+      data.append('meterType', formData.meterType);
+      data.append('customerId', customerId.toString());
+
+      data.append('picture', {
+        uri: picture.uri,
+        name: picture.fileName || `proof_${Date.now()}.jpg`,
+        type: picture.mimeType || 'image/jpeg',
+      });
+
+      const response = await axios.post(
+        'http:///10.65.2.138:62654/api/requestsform/submit',
+        data,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 30000,
+        }
+      );
+
+      if (response.status === 200) {
+        Alert.alert(
+          'Ombi limewasilishwa',
+          'Ombi lako limepokelewa kikamilifu',
+          [
+            {
+              text: 'Sawa',
+              onPress: () => navigation.navigate('PaymentsScreen', {
+                requestId: response.data.id,
+                serviceType: formData.serviceType,
+                amount: formData.serviceType === 'Kuunganishiwa Maji' ? '50000' : '30000',
+              }),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Submission error:', error);
+      const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Tatizo la mtandao. Tafadhali jaribu tena baadaye.';
+      Alert.alert('Hitilafu', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      setLoading(true);
-      fetchRequests();
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'pending':
-        return '#f9a825'; // yellow
-      case 'approved':
-      case 'completed':
-        return '#388e3c'; // green
-      case 'rejected':
-        return '#d32f2f'; // red
-      default:
-        return '#616161'; // grey
-    }
-  };
-
-  const filtered = requests.filter((item) =>
-    item.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-    item.address?.toLowerCase().includes(search.toLowerCase()) ||
-    item.requestType?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.customerName}>{item.customerName}</Text>
-      <Text style={styles.detail}>📍 {item.address}</Text>
-      <Text style={styles.detail}>🛠 {item.requestType}</Text>
-      <Text style={styles.detail}>📆 {item.requestDate}</Text>
-      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-        <Text style={styles.statusText}>{item.status}</Text>
-      </View>
-      <TouchableOpacity
-        style={styles.editButton}
-        onPress={() => navigation.navigate('CreateRequest', { requestId: item.id })}
-      >
-        <MaterialIcons name="edit" size={18} color="#fff" />
-        <Text style={styles.editText}>Edit</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <LinearGradient colors={['#bbdefb', '#e3f2fd']} style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>📋 Service Requests</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => navigation.navigate('CreateRequest')}
-          >
-            <Text style={styles.addButtonText}>+ New</Text>
-          </TouchableOpacity>
-        </View>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Fomu ya Maombi ya Huduma</Text>
 
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Jina Kamili</Text>
         <TextInput
-          placeholder="🔍 Search requests..."
-          value={search}
-          onChangeText={setSearch}
-          style={styles.searchInput}
+          style={[styles.input, errors.fullName && styles.inputError]}
+          value={formData.fullName}
+          onChangeText={(text) => handleChange('fullName', text)}
         />
+        {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
+      </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color="#1565c0" />
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<Text style={styles.emptyText}>No matching requests found.</Text>}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Namba ya Kitambulisho</Text>
+        <TextInput
+          style={[styles.input, errors.nationalId && styles.inputError]}
+          value={formData.nationalId}
+          onChangeText={(text) => handleChange('nationalId', text)}
+          keyboardType="numeric"
+        />
+        {errors.nationalId && <Text style={styles.errorText}>{errors.nationalId}</Text>}
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Anuani</Text>
+        <TextInput
+          style={[styles.input, errors.address && styles.inputError]}
+          value={formData.address}
+          onChangeText={(text) => handleChange('address', text)}
+        />
+        {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Namba ya Simu</Text>
+        <TextInput
+          style={[styles.input, errors.phone && styles.inputError]}
+          value={formData.phone}
+          onChangeText={(text) => handleChange('phone', text)}
+          keyboardType="phone-pad"
+        />
+        {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Aina ya Huduma</Text>
+        <TextInput
+          style={styles.input}
+          value={formData.serviceType}
+          onChangeText={(text) => handleChange('serviceType', text)}
+        />
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Aina ya Mita</Text>
+        <TextInput
+          style={styles.input}
+          value={formData.meterType}
+          onChangeText={(text) => handleChange('meterType', text)}
+        />
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Picha ya Ushahidi</Text>
+        <TouchableOpacity 
+          style={[styles.imageButton, errors.picture && styles.buttonError]}
+          onPress={selectPicture}
+        >
+          <Text style={{ color: 'white' }}>
+            {picture ? 'Badilisha Picha' : 'Chagua Picha'}
+          </Text>
+        </TouchableOpacity>
+        {errors.picture && <Text style={styles.errorText}>{errors.picture}</Text>}
+        {picture && (
+          <Image 
+            source={{ uri: picture.uri }} 
+            style={styles.preview} 
           />
         )}
-      </LinearGradient>
-    </SafeAreaView>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.submitButton} 
+        onPress={handleSubmit} 
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.submitText}>Tuma Ombi</Text>
+        )}
+      </TouchableOpacity>
+    </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#e3f2fd' },
-  container: { flex: 1, padding: 16 },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 10,
+  container: {
+    padding: 20,
+    backgroundColor: '#e3f2fd',
+    paddingBottom: 40,
   },
-  headerText: { fontSize: 22, fontWeight: 'bold', color: '#0d47a1' },
-  addButton: {
-    backgroundColor: '#1565c0', paddingVertical: 8,
-    paddingHorizontal: 14, borderRadius: 8,
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#0d47a1',
+    textAlign: 'center',
   },
-  addButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  searchInput: {
-    backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 16,
-    paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderColor: '#cfd8dc',
+  formGroup: {
+    marginBottom: 15,
   },
-  listContent: { paddingBottom: 80 },
-  card: {
-    backgroundColor: '#ffffff', borderRadius: 14, padding: 16,
-    marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.1,
-    shadowRadius: 4, elevation: 3,
+  label: {
+    fontWeight: '600',
+    fontSize: 15,
+    color: '#333',
+    marginBottom: 5,
   },
-  customerName: {
-    fontSize: 18, fontWeight: '700', color: '#1565c0', marginBottom: 4,
+  input: {
+    borderWidth: 1,
+    borderColor: '#90caf9',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
   },
-  detail: {
-    fontSize: 14, color: '#444', marginBottom: 2,
+  inputError: {
+    borderColor: '#f44336',
   },
-  statusBadge: {
-    marginTop: 6, paddingVertical: 4, paddingHorizontal: 8,
-    alignSelf: 'flex-start', borderRadius: 10,
+  errorText: {
+    color: '#f44336',
+    fontSize: 12,
+    marginTop: 5,
   },
-  statusText: {
-    color: '#fff', fontWeight: '600', fontSize: 13,
+  imageButton: {
+    backgroundColor: '#1565c0',
+    padding: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginTop: 5,
   },
-  editButton: {
-    marginTop: 10, backgroundColor: '#64b5f6',
-    paddingVertical: 6, paddingHorizontal: 12,
-    borderRadius: 8, flexDirection: 'row', alignItems: 'center',
+  buttonError: {
+    backgroundColor: '#f44336',
   },
-  editText: {
-    color: '#fff', fontWeight: '600', marginLeft: 6,
+  preview: {
+    width: '100%',
+    height: 200,
+    marginTop: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
-  emptyText: {
-    marginTop: 40, textAlign: 'center', fontSize: 16, color: '#777',
+  submitButton: {
+    backgroundColor: '#0d47a1',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  submitText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
+
+export default RequestFormScreen;

@@ -29,7 +29,7 @@ const ComplaintsScreen = () => {
 
       // 🔁 Badilisha IP hapa na port kulingana na Spring Boot backend yako
       const response = await axios.post(
-        "http://10.3.2.95:54927/api/complaints", 
+        "http://192.168.47.63:62654/api/complaints", 
         complaintData
       );
 

@@ -15,16 +15,15 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 export default function CreateRequestScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { requestId } = route.params || {};
+  const { requestId, customerName: loggedCustomerName } = route.params || {};
 
-  const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [requestType, setRequestType] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('Pending');
   const [loading, setLoading] = useState(false);
 
-  const backendBaseUrl = 'http://10.3.2.95:50655/api/requests';
+  const backendBaseUrl = 'http://10.3.2.123:62654/api/requests';
 
   const fetchRequestDetails = async (id) => {
     setLoading(true);
@@ -32,7 +31,7 @@ export default function CreateRequestScreen() {
       const response = await fetch(`${backendBaseUrl}/${id}`);
       if (response.ok) {
         const json = await response.json();
-        setCustomerName(json.customerName);
+        // We do NOT set customerName here, as it comes from logged user
         setAddress(json.address);
         setRequestType(json.requestType);
         setDescription(json.description || '');
@@ -51,14 +50,14 @@ export default function CreateRequestScreen() {
   };
 
   useEffect(() => {
-    if (requestId) {212343333333333333453335355                           
+    if (requestId) {
       fetchRequestDetails(requestId);
     }
   }, [requestId]);
 
   const handleSubmit = async () => {
-    if (!customerName.trim()) {
-      Alert.alert('Error', 'Please enter customer name.');
+    if (!loggedCustomerName) {
+      Alert.alert('Error', 'Customer name missing. Please login again.');
       return;
     }
     if (!address.trim()) {
@@ -71,7 +70,7 @@ export default function CreateRequestScreen() {
     }
 
     const payload = {
-      customerName: customerName.trim(),
+      customerName: loggedCustomerName,  // from logged in user param
       address: address.trim(),
       requestType: requestType.trim(),
       description: description.trim(),
@@ -125,13 +124,7 @@ export default function CreateRequestScreen() {
           <ActivityIndicator size="large" color="#2e7d32" />
         ) : (
           <View style={styles.form}>
-            <Text style={styles.label}>Customer Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Amina Ali"
-              value={customerName}
-              onChangeText={setCustomerName}
-            />
+            {/* Removed Customer Name input */}
 
             <Text style={styles.label}>Address</Text>
             <TextInput

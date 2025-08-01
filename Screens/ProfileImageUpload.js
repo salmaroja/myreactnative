@@ -44,7 +44,7 @@ const uploadImage = async (imageUri, email) => {
 
   try {
     const response = await axios.post(
-      'http://10.3.2.95:51020/api/v1/profile/upload-image',
+      'http://10.3.2.123:62654/api/v1/profile/upload-image',
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },

@@ -1,83 +1,99 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function WelcomeScreen({ navigation }) {
   return (
-    <ImageBackground
-      source={require('../assets/zawa.png')}
-      style={styles.background}
-      resizeMode="cover"
+    <LinearGradient
+      colors={['#0077be', '#00bfff']}
+      style={styles.container}
     >
       <StatusBar barStyle="light-content" />
-      <View style={styles.overlay}>
+
+      <View style={styles.topSection}>
+        <Image
+          source={require('../assets/zawa.png')} // Hakikisha path ni sahihi
+          style={styles.logo}
+        />
         <Text style={styles.title}>ZAWA</Text>
         <Text style={styles.subtitle}>Smart Water Management</Text>
+      </View>
 
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.buttonText}>Login</Text>
+      <View style={styles.bottomSection}>
+        <TouchableOpacity style={styles.loginButton} onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.loginText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.outlineButton} onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.outlineButtonText}>Register</Text>
+        <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('Register')}>
+          <Text style={styles.registerText}>Register</Text>
         </TouchableOpacity>
       </View>
-    </ImageBackground>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 60,
+    paddingHorizontal: 30,
   },
-  overlay: {
-    backgroundColor: 'rgba(0, 51, 102, 0.6)',
-    padding: 30,
-    marginHorizontal: 25,
-    borderRadius: 20,
+  topSection: {
     alignItems: 'center',
-    elevation: 5,
+    marginTop: 60,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 20,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   title: {
-    fontSize: 40,
-    fontWeight: '800',
+    fontSize: 45,
+    fontWeight: '900',
     color: '#ffffff',
-    marginBottom: 8,
+    letterSpacing: 3,
+    marginBottom: 10,
     textTransform: 'uppercase',
-    letterSpacing: 2,
   },
   subtitle: {
     fontSize: 18,
-    color: '#d0f0ff',
-    marginBottom: 35,
+    color: '#e6faff',
     fontStyle: 'italic',
   },
-  button: {
-    backgroundColor: '#00aaff',
+  bottomSection: {
+    alignItems: 'center',
+  },
+  loginButton: {
+    backgroundColor: '#ffffff',
     paddingVertical: 15,
-    paddingHorizontal: 40,
+    paddingHorizontal: 50,
     borderRadius: 30,
     width: '100%',
-    marginBottom: 15,
+    marginBottom: 20,
+    elevation: 3,
   },
-  buttonText: {
-    color: '#fff',
+  loginText: {
+    color: '#0077be',
     fontSize: 18,
+    fontWeight: 'bold',
     textAlign: 'center',
-    fontWeight: '600',
   },
-  outlineButton: {
-    borderColor: '#ffffff',
+  registerButton: {
     borderWidth: 2,
+    borderColor: '#ffffff',
     paddingVertical: 15,
-    paddingHorizontal: 40,
+    paddingHorizontal: 50,
     borderRadius: 30,
     width: '100%',
   },
-  outlineButtonText: {
+  registerText: {
     color: '#ffffff',
     fontSize: 18,
+    fontWeight: '600',
     textAlign: 'center',
-    fontWeight: '500',
   },
 });

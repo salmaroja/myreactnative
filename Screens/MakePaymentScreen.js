@@ -3,230 +3,218 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+  Image,
   Alert,
-  FlatList,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 
-export default function MakePaymentScreen({ navigation, route }) {
-  const [amountPaid, setAmountPaid] = useState('');
+const RequestFormScreen = ({ navigation }) => {
+  const [fullName, setFullName] = useState('');
+  const [nationalId, setNationalId] = useState('');
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [billId, setBillId] = useState(null);
-  const [userEmail, setUserEmail] = useState('');
-  const [customerId, setCustomerId] = useState(null);
-  const [payments, setPayments] = useState([]);
+  const [amountPaid, setAmountPaid] = useState('');
+  const [picture, setPicture] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [customerId, setCustomerId] = useState(null);
 
-  const BASE_URL = 'http://10.3.2.95:54032/api'; // your Spring Boot backend IP
-
-  // Get data from navigation route if available
   useEffect(() => {
-    if (route.params) {
-      const { billId: bId, amount, paymentMethod: pMethod } = route.params;
-      if (bId) setBillId(bId);
-      if (amount) setAmountPaid(String(amount));
-      if (pMethod) setPaymentMethod(pMethod);
-    }
-  }, [route.params]);
-
-  // Load logged in user from AsyncStorage
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const jsonValue = await AsyncStorage.getItem('userData');
-        if (jsonValue) {
-          const user = JSON.parse(jsonValue);
-          setUserEmail(user.email);
-          setCustomerId(user.id);
-          fetchPayments(user.id);
-        } else {
-          Alert.alert('Login Required', 'Please login to continue');
-          navigation.replace('LoginScreen');
-        }
-      } catch (error) {
-        console.error(error);
-        Alert.alert('Error loading user');
+    const fetchUser = async () => {
+      const jsonValue = await AsyncStorage.getItem('userData');
+      if (jsonValue) {
+        const user = JSON.parse(jsonValue);
+        setCustomerId(user.id);
+        setFullName(user.name || '');
+        setPhone(user.phone || '');
+      } else {
+        Alert.alert('Tafadhali ingia tena kwenye mfumo');
+        navigation.replace('LoginScreen');
       }
     };
-
-    loadUser();
+    fetchUser();
   }, []);
 
-  const fetchPayments = async (id) => {
-    setLoading(true);
+  const selectPicture = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Ruhusa ya picha haijatolewa.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setPicture(result.assets[0]);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!fullName || !nationalId || !address || !phone || !paymentMethod || !amountPaid || !picture) {
+      Alert.alert('Tafadhali jaza kila sehemu ya fomu na weka picha.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('fullName', fullName);
+    formData.append('nationalId', nationalId);
+    formData.append('address', address);
+    formData.append('phone', phone);
+    formData.append('paymentMethod', paymentMethod);
+    formData.append('amountPaid', amountPaid);
+    formData.append('customerId', customerId);
+    formData.append('picture', {
+      uri: picture.uri,
+      name: 'proof.jpg',
+      type: 'image/jpeg',
+    });
+
     try {
-      const response = await axios.get(`${BASE_URL}/payments/customer/${id}`);
-      setPayments(Array.isArray(response.data) ? response.data.reverse() : []);
-    } catch (error) {
-      console.error('Fetch error:', error.message);
-      Alert.alert('Failed to fetch payments');
+      setLoading(true);
+      const res = await axios.post(
+        'http://192.168.47.63:62654/api/requestsform/submit',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      if (res.status === 200) {
+        Alert.alert('✅ Ombi limewasilishwa kikamilifu!');
+        navigation.goBack();
+      } else {
+        Alert.alert('❌ Ombi halikutumwa.');
+      }
+    } catch (err) {
+      console.error('Hitilafu ya ombi:', err);
+      Alert.alert('❌ Tatizo la mtandao au server.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePayment = async () => {
-    if (!amountPaid || !paymentMethod || !billId || !userEmail) {
-      Alert.alert('Please fill all fields');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const response = await axios.post(`${BASE_URL}/payments`, {
-        email: userEmail,
-        billId: billId,
-        amountPaid: parseFloat(amountPaid),
-        paymentMethod: paymentMethod,
-      });
-
-      const data = response.data;
-
-      // Optional: send notification
-      await axios.post(`${BASE_URL}/notifications/customer/${customerId}`, {
-        title: 'Payment Successful',
-        message: `You paid TZS ${amountPaid} successfully.`,
-      });
-
-      Alert.alert('Success', `Control Number: ${data.controlNumber || 'N/A'}`);
-      setAmountPaid('');
-      setPaymentMethod('');
-      fetchPayments(customerId);
-      navigation.navigate('Notifications');
-    } catch (error) {
-      console.error('Payment error:', error.message);
-      Alert.alert('Payment Failed', error.response?.data?.message || 'Network Error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const renderPaymentItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>TZS {item.amountPaid}</Text>
-      <Text style={styles.cardText}>Method: {item.paymentMethod}</Text>
-      <Text style={styles.cardText}>Control No: {item.controlNumber}</Text>
-      <Text style={styles.cardDate}>{new Date(item.paymentDate).toLocaleString()}</Text>
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.innerContainer}>
-        <LinearGradient colors={['#e3f2fd', '#ffffff']} style={styles.gradient}>
-          <Text style={styles.title}>Make a Payment</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Fomu ya Maombi ya Huduma</Text>
 
-          <TextInput
-            placeholder="Amount (TZS)"
-            keyboardType="numeric"
-            value={amountPaid}
-            onChangeText={setAmountPaid}
-            style={styles.input}
-          />
+      <Text style={styles.label}>Jina Kamili</Text>
+      <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Jina lako kamili" />
 
-          <Text style={styles.label}>Select Payment Method</Text>
-          <View style={styles.pickerContainer}>
-            <Picker selectedValue={paymentMethod} onValueChange={setPaymentMethod}>
-              <Picker.Item label="-- Choose Method --" value="" />
-              <Picker.Item label="M-Pesa" value="M-Pesa" />
-              <Picker.Item label="Tigo Pesa" value="Tigo Pesa" />
-              <Picker.Item label="CRDB Bank" value="CRDB" />
-              <Picker.Item label="NMB Bank" value="NMB" />
-            </Picker>
-          </View>
+      <Text style={styles.label}>Namba ya Kitambulisho</Text>
+      <TextInput style={styles.input} value={nationalId} onChangeText={setNationalId} placeholder="NIDA au nyingine" />
 
-          <TouchableOpacity
-            style={[styles.button, submitting && { opacity: 0.6 }]}
-            onPress={handlePayment}
-            disabled={submitting}
-          >
-            <LinearGradient colors={['#1565c0', '#1e88e5']} style={styles.buttonGradient}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Pay Now</Text>}
-            </LinearGradient>
-          </TouchableOpacity>
+      <Text style={styles.label}>Anuani</Text>
+      <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Mfano: Mtaa wa Azizi, Dar" />
 
-          <Text style={styles.sectionTitle}>Previous Payments</Text>
-          {loading ? (
-            <ActivityIndicator size="large" color="#1565c0" />
-          ) : (
-            <FlatList data={payments} keyExtractor={(item) => item.id.toString()} renderItem={renderPaymentItem} />
-          )}
-        </LinearGradient>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <Text style={styles.label}>Namba ya Simu</Text>
+      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="07XXXXXXXX" />
+
+      <Text style={styles.label}>Njia ya Malipo</Text>
+      <View style={styles.pickerContainer}>
+        <Picker selectedValue={paymentMethod} onValueChange={(value) => setPaymentMethod(value)}>
+          <Picker.Item label="-- Chagua Njia ya Malipo --" value="" />
+          <Picker.Item label="M-Pesa" value="M-Pesa" />
+          <Picker.Item label="Tigo Pesa" value="Tigo Pesa" />
+          <Picker.Item label="Airtel Money" value="Airtel Money" />
+          <Picker.Item label="Benki (CRDB/NMB)" value="Benki" />
+        </Picker>
+      </View>
+
+      <Text style={styles.label}>Kiasi Kilicholipwa (Tsh)</Text>
+      <TextInput
+        style={styles.input}
+        value={amountPaid}
+        onChangeText={setAmountPaid}
+        keyboardType="numeric"
+        placeholder="Mfano: 50000"
+      />
+
+      <Text style={styles.label}>Picha ya Ushahidi</Text>
+      <TouchableOpacity style={styles.imageButton} onPress={selectPicture}>
+        <Text style={{ color: 'white' }}>{picture ? 'Badilisha Picha' : 'Chagua Picha'}</Text>
+      </TouchableOpacity>
+
+      {picture && <Image source={{ uri: picture.uri }} style={styles.preview} />}
+
+      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Tuma Ombi</Text>}
+      </TouchableOpacity>
+    </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  innerContainer: { flex: 1 },
-  gradient: { flex: 1, padding: 20 },
+  container: {
+    padding: 20,
+    backgroundColor: '#e3f2fd',
+  },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0d47a1',
+    fontSize: 22,
+    fontWeight: 'bold',
     marginBottom: 20,
+    color: '#0d47a1',
     textAlign: 'center',
   },
-  input: {
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    borderColor: '#ccc',
-    borderWidth: 1,
-  },
   label: {
+    fontWeight: '600',
+    marginTop: 15,
     fontSize: 15,
-    marginBottom: 6,
-    color: '#0d47a1',
-    fontWeight: '500',
+    color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#90caf9',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    marginTop: 5,
   },
   pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#b3e5fc',
-    marginBottom: 16,
+    borderColor: '#90caf9',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    marginTop: 5,
+    marginBottom: 10,
   },
-  button: { marginBottom: 20 },
-  buttonGradient: {
-    paddingVertical: 14,
-    borderRadius: 30,
+  imageButton: {
+    backgroundColor: '#1565c0',
+    padding: 12,
+    marginTop: 10,
+    borderRadius: 6,
     alignItems: 'center',
   },
-  buttonText: { fontSize: 18, color: '#fff', fontWeight: '600' },
-  sectionTitle: {
-    fontSize: 18,
+  preview: {
+    width: '100%',
+    height: 200,
+    marginTop: 10,
+    borderRadius: 10,
+  },
+  submitButton: {
+    backgroundColor: '#0d47a1',
+    padding: 15,
+    marginTop: 25,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    marginVertical: 10,
-    color: '#0d47a1',
-  },
-  card: {
-    backgroundColor: '#f1f8ff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    elevation: 2,
-  },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#1565c0' },
-  cardText: { fontSize: 14, color: '#333', marginTop: 4 },
-  cardDate: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 6,
-    textAlign: 'right',
   },
 });
+
+export default RequestFormScreen;
